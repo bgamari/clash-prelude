@@ -120,9 +120,6 @@ newtype DataFlow domain iEn oEn i o
           )
   }
 
--- | Dataflow circuit synchronised to the 'systemClockGen'.
--- type DataFlow iEn oEn i o = DataFlow' systemClockGen iEn oEn i o
-
 -- | Create a 'DataFlow' circuit from a circuit description with the appropriate
 -- type:
 --
