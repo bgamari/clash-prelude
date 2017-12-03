@@ -202,6 +202,9 @@ mealyDF clk rst f iS =
 
 -- | Create a 'DataFlow' circuit from a Moore machine description as those of
 -- "Clash.Prelude.Moore"
+--
+-- Note that the output function for a given cycle sees the state from the
+-- previous cycle, not the result of the step function.
 mooreDF :: Undefined s
         => Clock domain gated
         -> Reset domain synchronous
@@ -218,6 +221,9 @@ mooreDF clk rst ft fo iS =
 
 -- | Create a 'DataFlow' circuit from a Moore machine description as those of
 -- "Clash.Prelude.Moore" which only produces output on some steps.
+--
+-- Note that the output function for a given cycle sees the state from the
+-- previous cycle, not the result of the step function.
 mooreDF' :: Clock domain gated
          -> Reset domain synchronous
          -> (s -> i -> s)
