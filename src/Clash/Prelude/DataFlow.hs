@@ -49,6 +49,7 @@ module Clash.Prelude.DataFlow
   )
 where
 
+import Control.DeepSeq        (NFData(..))
 import Data.Maybe             (isJust)
 import GHC.TypeLits           (KnownNat, type (+), type (^))
 import Prelude                hiding ((++), (!!), length, map, repeat, tail, unzip3, zip3
@@ -145,6 +146,8 @@ liftDF = DF
 -- | A readiness value.
 data Ready a = Ready | NotReady
              deriving (Eq, Ord, Show)
+instance NFData (Ready a) where
+    rnf x = x `seq` ()
 
 boolToReady :: Bool -> Ready a
 boolToReady b = if b then Ready else NotReady
