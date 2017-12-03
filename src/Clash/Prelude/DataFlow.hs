@@ -31,6 +31,7 @@ module Clash.Prelude.DataFlow
   , pureDF
   , mealyDF
   , mooreDF
+  , mooreDF'
   , fifoDF
     -- * Composition combinators
   , idDF
@@ -57,7 +58,7 @@ import Clash.Class.Resize     (truncateB)
 import Clash.Prelude.BitIndex (msb)
 import Clash.Explicit.Mealy   (mealyB)
 import Clash.Promoted.Nat     (SNat)
-import Clash.Signal           ((.&&.), unbundle)
+import Clash.Signal           ((.&&.), (.||.), unbundle)
 import Clash.Signal.Bundle    (Bundle (..))
 import Clash.Signal.Internal  (clockGate, register#)
 import Clash.Explicit.Signal  (Clock, Reset, Signal)
@@ -198,6 +199,23 @@ mooreDF clk rst ft fo iS =
                       s   = register# (clockGate clk en) rst iS s'
                       o   = fo <$> s
                   in  (o,iV,oR))
+
+-- | Create a 'DataFlow' circuit from a Moore machine description as those of
+-- "Clash.Prelude.Moore" which only produces output on some steps.
+mooreDF' :: Clock domain gated
+         -> Reset domain synchronous
+         -> (s -> i -> s)
+         -> (s -> Maybe o)
+         -> s
+         -> DataFlow domain Bool Bool i o
+mooreDF' clk rst ft fo iS =
+  DF (\i iV oR -> let en  = iV .&&. ((oV .&&. oR) .||. fmap not oV)
+                      s'  = ft <$> s <*> i
+                      s   = register# (clockGate clk en) rst iS s'
+                      o   = fo <$> s
+                      oV  = isJust <$> o
+                      err = error "mooreDF': invalid output"
+                  in  (maybe err id <$> o,oV,oR))
 
 fifoDF_mealy :: forall addrSize a . KnownNat addrSize
   => (Vec (2^addrSize) a, BitVector (addrSize + 1), BitVector (addrSize + 1))
