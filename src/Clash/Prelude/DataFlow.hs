@@ -26,9 +26,12 @@ module Clash.Prelude.DataFlow
     DataFlow (..)
     -- * Creating DataFlow circuits
   , liftDF
+  , liftDF'
+  , Ready(..)
   , pureDF
   , mealyDF
   , mooreDF
+  , mooreDF'
   , fifoDF
     -- * Composition combinators
   , idDF
@@ -45,6 +48,7 @@ module Clash.Prelude.DataFlow
   )
 where
 
+import Data.Maybe             (isJust)
 import GHC.TypeLits           (KnownNat, type (+), type (^))
 import Prelude                hiding ((++), (!!), length, map, repeat, tail, unzip3, zip3
                               , zipWith)
@@ -54,7 +58,7 @@ import Clash.Class.Resize     (truncateB)
 import Clash.Prelude.BitIndex (msb)
 import Clash.Explicit.Mealy   (mealyB)
 import Clash.Promoted.Nat     (SNat)
-import Clash.Signal           ((.&&.), unbundle)
+import Clash.Signal           ((.&&.), (.||.), unbundle)
 import Clash.Signal.Bundle    (Bundle (..))
 import Clash.Signal.Internal  (clockGate, register#)
 import Clash.Explicit.Signal  (Clock, Reset, Signal)
@@ -140,6 +144,25 @@ liftDF :: (Signal dom i -> Signal dom Bool -> Signal dom Bool
        -> DataFlow dom Bool Bool i o
 liftDF = DF
 
+-- | A readiness value.
+data Ready a = Ready | NotReady
+             deriving (Eq, Ord, Show)
+
+-- | Like 'liftDF' but with slightly more descriptive types.
+liftDF' :: (Signal dom (Maybe i) -> Signal dom (Ready o)
+                         -> (Signal dom (Maybe o), Signal dom (Ready i)))
+        -> DataFlow dom Bool Bool i o
+liftDF' f = DF $ \iData iValid oReady ->
+                   let validToMaybe valid dat
+                         | valid     = Just dat
+                         | otherwise = Nothing
+                       boolToReady b = if b then Ready else NotReady
+                       (o, iReady) = f (validToMaybe <$> iValid <*> iData)
+                                       (fmap boolToReady oReady)
+                       oValid = isJust <$> o
+                       oData  = maybe (error "liftDF': invalid output") id <$> o
+                   in (oData, oValid, (== Ready) <$> iReady)
+
 -- | Create a 'DataFlow' circuit where the given function @f@ operates on the
 -- data, and the synchronisation channels are passed unaltered.
 pureDF :: (i -> o)
@@ -173,6 +196,23 @@ mooreDF clk rst ft fo iS =
                       s   = register# (clockGate clk en) rst iS s'
                       o   = fo <$> s
                   in  (o,iV,oR))
+
+-- | Create a 'DataFlow' circuit from a Moore machine description as those of
+-- "Clash.Prelude.Moore" which only produces output on some steps.
+mooreDF' :: Clock domain gated
+         -> Reset domain synchronous
+         -> (s -> i -> s)
+         -> (s -> Maybe o)
+         -> s
+         -> DataFlow domain Bool Bool i o
+mooreDF' clk rst ft fo iS =
+  DF (\i iV oR -> let en  = iV .&&. ((oV .&&. oR) .||. fmap not oV)
+                      s'  = ft <$> s <*> i
+                      s   = register# (clockGate clk en) rst iS s'
+                      o   = fo <$> s
+                      oV  = isJust <$> o
+                      err = error "mooreDF': invalid output"
+                  in  (maybe err id <$> o,oV,oR))
 
 fifoDF_mealy :: forall addrSize a . KnownNat addrSize
   => (Vec (2^addrSize) a, BitVector (addrSize + 1), BitVector (addrSize + 1))
