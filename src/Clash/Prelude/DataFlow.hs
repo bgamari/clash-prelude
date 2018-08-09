@@ -203,11 +203,12 @@ mealyDF clk rst f iS =
 
 -- | Create a 'DataFlow' circuit from a Mealy machine description as those of
 -- "Clash.Prelude.Mealy" but that only produces output on some steps.
-mealyDF' :: Clock domain gated
-        -> Reset domain synchronous
-        -> (s -> i -> (s, Maybe o))
-        -> s
-        -> DataFlow domain Bool Bool i o
+mealyDF' :: Undefined s
+         => Clock domain gated
+         -> Reset domain synchronous
+         -> (s -> i -> (s, Maybe o))
+         -> s
+         -> DataFlow domain Bool Bool i o
 mealyDF' clk rst f iS =
   DF (\i iV oR -> let en     = iV .&&. oR
                       (s',o) = unbundle (g <$> en <*> s <*> i)
@@ -242,7 +243,8 @@ mooreDF clk rst ft fo iS =
 --
 -- Note that the output function for a given cycle sees the state from the
 -- previous cycle, not the result of the step function.
-mooreDF' :: Clock domain gated
+mooreDF' :: Undefined s
+         => Clock domain gated
          -> Reset domain synchronous
          -> (s -> i -> s)
          -> (s -> Maybe o)
